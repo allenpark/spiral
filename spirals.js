@@ -16,7 +16,22 @@ var SpiralControl = function(newCanvas, fps) {
   this.imageData = this.context.createImageData(
     this.canvas.width, this.canvas.height);
 
-  this.spiral = new Spiral(this.canvas.width / 2, this.canvas.height, 0);
+  this.spirals = [];
+  setTimeout(function() {
+    this.spirals.push(new Spiral(this.canvas.width / 2, this.canvas.height / 2, 0, 1, this.randomSize()))}.bind(this), 0);
+  setTimeout(function() {
+    this.spirals.push(new Spiral(this.canvas.width / 2, this.canvas.height / 2-1, 0, -1, this.randomSize()))}.bind(this), 1000);
+  setTimeout(function() {
+    this.spirals.push(new Spiral(this.canvas.width / 2, this.canvas.height / 2, Math.PI, 1, this.randomSize()))}.bind(this), 1500);
+  setTimeout(function() {
+    this.spirals.push(new Spiral(this.canvas.width / 2, this.canvas.height / 2-1, Math.PI, -1, this.randomSize()))}.bind(this), 2000);
+};
+
+/**
+ * @return A random size.
+ */
+SpiralControl.prototype.randomSize = function() {
+  return Math.random() * .04 + .3;
 };
 
 /**
@@ -24,9 +39,11 @@ var SpiralControl = function(newCanvas, fps) {
  * @param {number} startX The x coordinate of the root.
  * @param {number} startY The y coordinate of the root.
  * @param {number} startDir The direction, in radians, of the spiral.
- * @param {Array.<number>} newColor The color of the spiral.
+ * @param {number} startAccel The sign of the acceleration.
+ * @param {number} startSizeMult The size multiplier.
+ * @param {Array.<number>=} newColor The color of the spiral. Default is random.
  */
-var Spiral = function(startX, startY, startDir, newColor) {
+var Spiral = function(startX, startY, startDir, startAccel, startSizeMult, newColor) {
   /**
    * The coordinates of the root.
    * @type {Array.<number>}
@@ -50,13 +67,24 @@ var Spiral = function(startX, startY, startDir, newColor) {
    * The angular acceleration of the spiral.
    * @type {number}
    */
-  this.angularAccel = -.05;
+  this.angularAccel = startAccel * .05;
+
+  /**
+   * Time since the branch started.
+   * @type {number}
+   */
+  this.timeSinceBranch = 0;
+
+  /**
+   * Size multiplier of the spiral.
+   */
+  this.sizeMult = startSizeMult;
 
   /**
    * The speed of the spiral.
    * @type {number}
    */
-  this.speed = 5;
+  this.speed = 3 * this.sizeMult;
 
   /**
    * The tip of the spiral, where it grows.
@@ -65,24 +93,56 @@ var Spiral = function(startX, startY, startDir, newColor) {
   this.tip = [startX, startY];
 
   /**
+   * The root of the branch. Null if not discovered yet.
+   * @type {?Array.<number>}
+   */
+  this.branchRoot = null;
+
+  /**
    * The updated coordinates that haven't been on the image yet.
    * The controller needs to clear this.
    * @type {Array.<Array.<number>>}
    */
   this.updated = [];
+
+  /**
+   * True iff the spiral is stopped.
+   */
+  this.stopped = false;
 };
 
 /**
  * Updates the spiral.
  */
 Spiral.prototype.update = function() {
+  if (this.stopped) {
+    return;
+  }
   var oldTip = [this.tip[0], this.tip[1]];
   this.tip[0] += this.speed * Math.cos(this.dir);
   this.tip[1] += this.speed * Math.sin(this.dir);
 
   this.updateLine(oldTip, this.tip);
-  this.speed *= .999;
-  this.dir += this.angularAccel;
+  this.speed = this.updateSpeed(this.speed);
+  console.log(this.speed);
+  if (this.timeSinceBranch > 25) {
+    if (this.branchRoot == null) {
+      this.branchRoot = [this.tip[0], this.tip[1], this.dir, this.angularAccel];
+    }
+    this.dir += this.angularAccel;
+  } else {
+    this.dir += this.angularAccel / 2;
+    this.timeSinceBranch ++;
+  }
+};
+
+/**
+ * Updates the speed.
+ * @param {number} x The original speed.
+ * @return The new speed.
+ */
+Spiral.prototype.updateSpeed = function(x) {
+  return x * .993 - .0016 * this.sizeMult;
 };
 
 /**
@@ -131,9 +191,24 @@ Spiral.prototype.updateLine = function(p1, p2) {
  * Updates the spirals.
  */
 SpiralControl.prototype.update = function() {
-  this.spiral.update();
-  this.absorbUpdates(this.spiral);
-  this.decorateCanvas();
+  this.spirals.forEach(function(spiral, index, spirals) {
+    if (!spiral.stopped) {
+      spiral.update();
+      this.absorbUpdates(spiral);
+      this.decorateCanvas();
+      if (spiral.speed < 0) {
+        spiral.stopped = true;;
+      }
+    }
+    if (spiral.branchRoot != null) {
+      if (Math.random() < .001) {
+        console.log('what a chance!');
+        this.spirals.push(new Spiral(spiral.branchRoot[0], spiral.branchRoot[1], spiral.branchRoot[2],
+                                     -1 * SpiralControl.sign(spiral.branchRoot[3]), this.randomSize()));
+        spiral.branchRoot = null;
+      }
+    }
+  }.bind(this));
 };
 
 /**
@@ -273,7 +348,18 @@ SpiralControl.randomColor = function() {
           Math.floor(Math.random()*256)];
 };
 
-var canvas = document.getElementById('canvas');
-var spirals = new SpiralControl(canvas);
-document.getElementById('startButton').onclick = function() {spirals.start();};
-document.getElementById('stopButton').onclick = function() {spirals.stop();};
+/**
+ * Returns the sign of x.
+ * @param {number} x The number to be signed.
+ * @return The sign of x.
+ */
+SpiralControl.sign = function(x) {
+  if (x > 0) {
+    return 1;
+  } else if (x < 0) {
+    return -1;
+  } else {
+    return 0;
+  }
+};
+  

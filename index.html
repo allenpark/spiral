@@ -2,15 +2,25 @@
   <head>
     <title>spirals</title>
     <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.1/jquery.min.js"></script>
+    <script type="text/javascript">
+      var init = function() {
+        var canvas = document.getElementById('canvas');
+        var spirals = new SpiralControl(canvas);
+        document.getElementById('startButton').onclick = function() {spirals.start();};
+        document.getElementById('stopButton').onclick = function() {spirals.stop();};
+        document.getElementById('restartButton').onclick = function() {spirals.stop(); init(); spirals.start();};
+      };
+</script>
   </head>
-  <body>
+  <body onload="init();">
     spirals
     <div id="canvasContainer" class="canvasContainer">
-    <canvas id="canvas" class="canvas" width="600" height="300"></canvas>
+    <canvas id="canvas" class="canvas" width="600" height="300" style="border-style:solid"></canvas>
     </div>
     <span id="debug">&nbsp;</span>
     <button id="startButton">Start</button>
     <button id="stopButton">Stop</button>
+    <button id="restartButton">Restart</button>
   </body>
   <script type="text/javascript" src="spirals.js"></script>
 </html>
